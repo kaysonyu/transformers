@@ -1197,28 +1197,149 @@ class XYTokenizerPreTrainedModel(PreTrainedAudioTokenizerBase):
     XY_TOKENIZER_START_DOCSTRING,
 )
 class XYTokenizer(XYTokenizerPreTrainedModel):
+    @staticmethod
+    def _get_encoder_kwargs(encoder_config):
+        """Convert encoder config to kwargs dict for XYTokenizerEncoder."""
+        return {
+            "num_mel_bins": encoder_config.num_mel_bins,
+            "sampling_rate": encoder_config.sampling_rate,
+            "hop_length": encoder_config.hop_length,
+            "stride_size": encoder_config.stride_size,
+            "kernel_size": encoder_config.kernel_size,
+            "d_model": encoder_config.d_model,
+            "scale_embedding": encoder_config.scale_embedding,
+            "max_audio_seconds": encoder_config.max_audio_seconds,
+            "encoder_layers": encoder_config.encoder_layers,
+            "encoder_attention_heads": encoder_config.encoder_attention_heads,
+            "encoder_ffn_dim": encoder_config.encoder_ffn_dim,
+            "activation_function": encoder_config.activation_function,
+            "attn_type": encoder_config.attn_type,
+        }
+
+    @staticmethod
+    def _get_decoder_kwargs(decoder_config):
+        """Convert decoder config to kwargs dict for XYTokenizerDecoder."""
+        return {
+            "num_mel_bins": decoder_config.num_mel_bins,
+            "sampling_rate": decoder_config.sampling_rate,
+            "hop_length": decoder_config.hop_length,
+            "stride_size": decoder_config.stride_size,
+            "kernel_size": decoder_config.kernel_size,
+            "d_model": decoder_config.d_model,
+            "scale_embedding": decoder_config.scale_embedding,
+            "max_audio_seconds": decoder_config.max_audio_seconds,
+            "decoder_layers": decoder_config.decoder_layers,
+            "decoder_attention_heads": decoder_config.decoder_attention_heads,
+            "decoder_ffn_dim": decoder_config.decoder_ffn_dim,
+            "activation_function": decoder_config.activation_function,
+            "attn_type": decoder_config.attn_type,
+        }
+
+    @staticmethod
+    def _get_transformer_kwargs(transformer_config):
+        """Convert transformer config to kwargs dict for XYTokenizerTransformer."""
+        return {
+            "input_dim": transformer_config.input_dim,
+            "d_model": transformer_config.d_model,
+            "output_dim": transformer_config.output_dim,
+            "max_source_positions": transformer_config.max_source_positions,
+            "encoder_layers": transformer_config.encoder_layers,
+            "encoder_attention_heads": transformer_config.encoder_attention_heads,
+            "encoder_ffn_dim": transformer_config.encoder_ffn_dim,
+            "activation_function": transformer_config.activation_function,
+            "attn_type": transformer_config.attn_type,
+        }
+
+    @staticmethod
+    def _get_quantizer_kwargs(quantizer_config):
+        """Convert quantizer config to kwargs dict for ResidualVQ."""
+
+        # Create VectorQuantizerConfig from the flattened parameters
+        vq_config = VectorQuantizerConfig(
+            commitment=quantizer_config.commitment,
+            decay=quantizer_config.decay,
+            epsilon=quantizer_config.epsilon,
+            threshold_ema_dead=quantizer_config.threshold_ema_dead,
+            kmeans_init=quantizer_config.kmeans_init,
+            kmeans_iters=quantizer_config.kmeans_iters,
+        )
+        return {
+            "input_dim": quantizer_config.input_dim,
+            "rvq_dim": quantizer_config.rvq_dim,
+            "output_dim": quantizer_config.output_dim,
+            "num_quantizers": quantizer_config.num_quantizers,
+            "codebook_size": quantizer_config.codebook_size,
+            "codebook_dim": quantizer_config.codebook_dim,
+            "quantizer_dropout": quantizer_config.quantizer_dropout,
+            "skip_rvq_ratio": quantizer_config.skip_rvq_ratio,
+            "vq_config": vq_config,
+        }
+
+    @staticmethod
+    def _get_vocos_kwargs(vocos_config):
+        """Convert vocos config to kwargs dict for Vocos."""
+        return {
+            "input_channels": vocos_config.input_channels,
+            "dim": vocos_config.dim,
+            "intermediate_dim": vocos_config.intermediate_dim,
+            "num_layers": vocos_config.num_layers,
+            "n_fft": vocos_config.n_fft,
+            "hop_size": vocos_config.hop_size,
+            "padding": vocos_config.padding,
+        }
+
+    @staticmethod
+    def _get_feature_extractor_kwargs(fe_config):
+        """Convert feature extractor config to kwargs dict for XYTokenizerFeatureExtractor."""
+        return {
+            "feature_size": fe_config.feature_size,
+            "sampling_rate": fe_config.sampling_rate,
+            "hop_length": fe_config.hop_length,
+            "chunk_length": fe_config.chunk_length,
+            "n_fft": fe_config.n_fft,
+            "n_samples": fe_config.n_samples,
+            "nb_max_frames": fe_config.nb_max_frames,
+            "padding_side": fe_config.padding_side,
+            "padding_value": fe_config.padding_value,
+            "dither": fe_config.dither,
+            "return_attention_mask": fe_config.return_attention_mask,
+            "max_frequency": fe_config.max_frequency,
+            "batch_size": fe_config.batch_size,
+            "overlap_side": fe_config.overlap_side,
+        }
+
     def __init__(self, config: XYTokenizerConfig):
         super().__init__(config)
-        # Reconstruct the nested parameter dictionaries from the flat config
-        # This is a bit of a boilerplate but necessary to reuse the original module code.
-        # A more integrated approach would refactor the sub-modules to accept the flat config directly.
         self.config = config
 
-        params = config.params
-        self.semantic_encoder = XYTokenizerEncoder(**params["semantic_encoder_kwargs"])
-        self.semantic_encoder_adapter = XYTokenizerTransformer(**params["semantic_encoder_adapter_kwargs"])
-        self.acoustic_encoder = XYTokenizerEncoder(**params["acoustic_encoder_kwargs"])
-        self.pre_rvq_adapter = XYTokenizerTransformer(**params["pre_rvq_adapter_kwargs"])
-        self.downsample = ResidualDownConv(**params["downsample_kwargs"])
-        self.quantizer = ResidualVQ(**params["quantizer_kwargs"])
-        self.post_rvq_adapter = XYTokenizerTransformer(**params["post_rvq_adapter_kwargs"])
-        self.upsample = UpConv(**params["upsample_kwargs"])
-        self.acoustic_decoder = XYTokenizerDecoder(**params["acoustic_decoder_kwargs"])
-        self.enhanced_vocos = Vocos(**params["vocos_kwargs"])
-        self.feature_extractor = XYTokenizerFeatureExtractor(**params["feature_extractor_kwargs"])
+        # Initialize components using sub-configs
+        self.semantic_encoder = XYTokenizerEncoder(**self._get_encoder_kwargs(config.semantic_encoder_config))
+        self.semantic_encoder_adapter = XYTokenizerTransformer(
+            **self._get_transformer_kwargs(config.semantic_encoder_adapter_config)
+        )
+        self.acoustic_encoder = XYTokenizerEncoder(**self._get_encoder_kwargs(config.acoustic_encoder_config))
+        self.pre_rvq_adapter = XYTokenizerTransformer(**self._get_transformer_kwargs(config.pre_rvq_adapter_config))
+        self.downsample = ResidualDownConv(
+            d_model=config.convolution_config.d_model,
+            avg_pooler=config.convolution_config.downsample_avg_pooler,
+        )
+        self.quantizer = ResidualVQ(**self._get_quantizer_kwargs(config.quantizer_config))
+        self.post_rvq_adapter = XYTokenizerTransformer(
+            **self._get_transformer_kwargs(config.post_rvq_adapter_config)
+        )
+        self.upsample = UpConv(
+            d_model=config.convolution_config.d_model,
+            stride=config.convolution_config.upsample_stride,
+        )
+        self.acoustic_decoder = XYTokenizerDecoder(**self._get_decoder_kwargs(config.acoustic_decoder_config))
+        self.enhanced_vocos = Vocos(**self._get_vocos_kwargs(config.vocos_config))
+        self.feature_extractor = XYTokenizerFeatureExtractor(
+            **self._get_feature_extractor_kwargs(config.feature_extractor_config)
+        )
+
         # Store some config values for easier access
         self.encoder_downsample_rate = config.encoder_downsample_rate
-        self.nq = params["quantizer_kwargs"]["num_quantizers"]
+        self.nq = config.quantizer_config.num_quantizers
         # Prefer new canonical names but expose deprecated ones for compatibility
         self.input_sampling_rate = getattr(config, "input_sampling_rate", getattr(config, "input_sample_rate", 16000))
         self.sampling_rate = getattr(config, "sampling_rate", getattr(config, "output_sample_rate", 16000))
