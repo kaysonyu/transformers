@@ -29,6 +29,7 @@ import numpy as np
 from ...activations import ACT2FN
 from ...feature_extraction_utils import BatchFeature
 from ...modeling_attn_mask_utils import _prepare_4d_attention_mask
+from ...modeling_layers import GradientCheckpointingLayer
 from ...modeling_outputs import ModelOutput
 from ...modeling_utils import PreTrainedAudioTokenizerBase
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, is_torch_available
@@ -270,8 +271,10 @@ class XYTokenizerMLP(nn.Module):
         return hidden_states
 
 
-class XYTokenizerTransformerLayer(nn.Module):
-    """Transformer layer for XY-Tokenizer."""
+class XYTokenizerTransformerLayer(GradientCheckpointingLayer):
+    """
+    Transformer layer for XY-Tokenizer.
+    """
 
     def __init__(
         self,
@@ -346,7 +349,13 @@ class XYTokenizerTransformerLayer(nn.Module):
         return outputs
 
 
+# Reuse sinusoids from Whisper (identical implementation)
 def sinusoids(length, channels, max_timescale=10000, device=None):
+    """
+    Returns sinusoids for positional embedding.
+    Note: This is identical to Whisper's sinusoids implementation.
+    Consider importing from transformers.models.whisper.modeling_whisper for consistency.
+    """
     if channels % 2 != 0:
         raise ValueError("channels must be an even number for sinusoidal embeddings")
     log_timescale_increment = np.log(max_timescale) / (channels // 2 - 1)

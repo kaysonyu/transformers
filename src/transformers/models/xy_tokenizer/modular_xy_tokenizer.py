@@ -23,6 +23,7 @@ import numpy as np
 from ...activations import ACT2FN
 from ...feature_extraction_utils import BatchFeature
 from ...modeling_attn_mask_utils import _prepare_4d_attention_mask
+from ...modeling_layers import GradientCheckpointingLayer
 from ...modeling_outputs import ModelOutput
 from ...modeling_utils import PreTrainedAudioTokenizerBase
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, is_torch_available, logging
@@ -40,6 +41,21 @@ if is_torch_available():
 logger = logging.get_logger(__name__)
 
 _CONFIG_FOR_DOC = "XYTokenizerConfig"
+
+
+# Reuse sinusoids from Whisper (identical implementation)
+def sinusoids(length, channels, max_timescale=10000, device=None):
+    """
+    Returns sinusoids for positional embedding.
+    Note: This is identical to Whisper's sinusoids implementation.
+    Consider importing from transformers.models.whisper.modeling_whisper for consistency.
+    """
+    if channels % 2 != 0:
+        raise ValueError("channels must be an even number for sinusoidal embeddings")
+    log_timescale_increment = np.log(max_timescale) / (channels // 2 - 1)
+    inv_timescales = torch.exp(-log_timescale_increment * torch.arange(channels // 2))
+    scaled_time = torch.arange(length, device=device)[:, np.newaxis] * inv_timescales[np.newaxis, :]
+    return torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1)
 
 
 @dataclass
@@ -121,15 +137,6 @@ class _VectorQuantizerParams:
     threshold_ema_dead: int = 2
     kmeans_init: bool = True
     kmeans_iters: int = 10
-
-
-def sinusoids(length, channels, max_timescale=10000, device=None):
-    if channels % 2 != 0:
-        raise ValueError("channels must be an even number for sinusoidal embeddings")
-    log_timescale_increment = np.log(max_timescale) / (channels // 2 - 1)
-    inv_timescales = torch.exp(-log_timescale_increment * torch.arange(channels // 2))
-    scaled_time = torch.arange(length, device=device)[:, np.newaxis] * inv_timescales[np.newaxis, :]
-    return torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1)
 
 
 def get_sequence_mask(inputs, inputs_length):
@@ -287,8 +294,10 @@ class XYTokenizerMLP(nn.Module):
         return hidden_states
 
 
-class XYTokenizerTransformerLayer(nn.Module):
-    """Transformer layer for XY-Tokenizer."""
+class XYTokenizerTransformerLayer(GradientCheckpointingLayer):
+    """
+    Transformer layer for XY-Tokenizer.
+    """
 
     def __init__(
         self,
