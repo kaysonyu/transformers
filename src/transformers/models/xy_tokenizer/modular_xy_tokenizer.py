@@ -1309,9 +1309,7 @@ class XYTokenizerModel(XYTokenizerPreTrainedModel):
             avg_pooler=config.convolution_config.downsample_avg_pooler,
         )
         self.quantizer = ResidualVQ(**self._get_quantizer_kwargs(config.quantizer_config))
-        self.post_rvq_adapter = XYTokenizerTransformer(
-            **self._get_transformer_kwargs(config.post_rvq_adapter_config)
-        )
+        self.post_rvq_adapter = XYTokenizerTransformer(**self._get_transformer_kwargs(config.post_rvq_adapter_config))
         self.upsample = UpConv(
             d_model=config.convolution_config.d_model,
             stride=config.convolution_config.upsample_stride,

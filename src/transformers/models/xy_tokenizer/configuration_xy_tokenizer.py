@@ -535,22 +535,14 @@ class XYTokenizerConfig(PretrainedConfig):
             self._migrate_from_params(params)
         else:
             # Initialize each sub-config
-            self.semantic_encoder_config = self._init_subconfig(
-                semantic_encoder_config, XYTokenizerEncoderConfig
-            )
-            self.acoustic_encoder_config = self._init_subconfig(
-                acoustic_encoder_config, XYTokenizerEncoderConfig
-            )
+            self.semantic_encoder_config = self._init_subconfig(semantic_encoder_config, XYTokenizerEncoderConfig)
+            self.acoustic_encoder_config = self._init_subconfig(acoustic_encoder_config, XYTokenizerEncoderConfig)
             self.semantic_encoder_adapter_config = self._init_subconfig(
                 semantic_encoder_adapter_config, XYTokenizerTransformerConfig
             )
             self.pre_rvq_adapter_config = self._init_subconfig(pre_rvq_adapter_config, XYTokenizerTransformerConfig)
-            self.post_rvq_adapter_config = self._init_subconfig(
-                post_rvq_adapter_config, XYTokenizerTransformerConfig
-            )
-            self.acoustic_decoder_config = self._init_subconfig(
-                acoustic_decoder_config, XYTokenizerDecoderConfig
-            )
+            self.post_rvq_adapter_config = self._init_subconfig(post_rvq_adapter_config, XYTokenizerTransformerConfig)
+            self.acoustic_decoder_config = self._init_subconfig(acoustic_decoder_config, XYTokenizerDecoderConfig)
             self.quantizer_config = self._init_subconfig(quantizer_config, XYTokenizerResidualVQConfig)
             self.convolution_config = self._init_subconfig(convolution_config, XYTokenizerConvolutionConfig)
             self.vocos_config = self._init_subconfig(vocos_config, XYTokenizerVocosConfig)
@@ -578,9 +570,7 @@ class XYTokenizerConfig(PretrainedConfig):
 
         super().__init__(**kwargs)
 
-    def _init_subconfig(
-        self, config: Optional[Union[dict, PretrainedConfig]], config_class: type
-    ) -> PretrainedConfig:
+    def _init_subconfig(self, config: Optional[Union[dict, PretrainedConfig]], config_class: type) -> PretrainedConfig:
         """
         Initialize a sub-config from None, dict, or existing config instance.
 
@@ -668,7 +658,9 @@ class XYTokenizerConfig(PretrainedConfig):
             conv_kwargs["upsample_stride"] = params["upsample_kwargs"].get("stride", 4)
             if "d_model" not in conv_kwargs:
                 conv_kwargs["d_model"] = params["upsample_kwargs"].get("d_model", 1280)
-        self.convolution_config = XYTokenizerConvolutionConfig(**conv_kwargs) if conv_kwargs else XYTokenizerConvolutionConfig()
+        self.convolution_config = (
+            XYTokenizerConvolutionConfig(**conv_kwargs) if conv_kwargs else XYTokenizerConvolutionConfig()
+        )
 
         # Migrate Vocos
         if "vocos_kwargs" in params:
