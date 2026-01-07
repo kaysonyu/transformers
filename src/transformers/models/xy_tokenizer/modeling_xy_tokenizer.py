@@ -34,7 +34,7 @@ from ...modeling_outputs import ModelOutput
 from ...modeling_utils import PreTrainedAudioTokenizerBase
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, is_torch_available
 from .configuration_xy_tokenizer import XYTokenizerConfig
-from .feature_extraction_xy_tokenizer import ExtractorIterator, XYTokenizerFeatureExtractor
+from .feature_extraction_xy_tokenizer import ExtractorIterator
 
 
 if is_torch_available():
@@ -1285,26 +1285,6 @@ class XYTokenizerModel(XYTokenizerPreTrainedModel):
             "padding": vocos_config.padding,
         }
 
-    @staticmethod
-    def _get_feature_extractor_kwargs(fe_config):
-        """Convert feature extractor config to kwargs dict for XYTokenizerFeatureExtractor."""
-        return {
-            "feature_size": fe_config.feature_size,
-            "sampling_rate": fe_config.sampling_rate,
-            "hop_length": fe_config.hop_length,
-            "chunk_length": fe_config.chunk_length,
-            "n_fft": fe_config.n_fft,
-            "n_samples": fe_config.n_samples,
-            "nb_max_frames": fe_config.nb_max_frames,
-            "padding_side": fe_config.padding_side,
-            "padding_value": fe_config.padding_value,
-            "dither": fe_config.dither,
-            "return_attention_mask": fe_config.return_attention_mask,
-            "max_frequency": fe_config.max_frequency,
-            "batch_size": fe_config.batch_size,
-            "overlap_side": fe_config.overlap_side,
-        }
-
     def __init__(self, config: XYTokenizerConfig):
         super().__init__(config)
         self.config = config
@@ -1328,13 +1308,14 @@ class XYTokenizerModel(XYTokenizerPreTrainedModel):
         )
         self.acoustic_decoder = XYTokenizerDecoder(**self._get_decoder_kwargs(config.acoustic_decoder_config))
         self.enhanced_vocos = Vocos(**self._get_vocos_kwargs(config.vocos_config))
-        self.feature_extractor = XYTokenizerFeatureExtractor(
-            **self._get_feature_extractor_kwargs(config.feature_extractor_config)
-        )
 
         # Store some config values for easier access
         self.encoder_downsample_rate = config.encoder_downsample_rate
+        self.decoder_upsample_rate = config.decoder_upsample_rate
         self.nq = config.quantizer_config.num_quantizers
+        # Store feature extractor config values needed for decoding
+        self.chunk_length = config.feature_extractor_config.chunk_length
+        self.feature_extractor_sampling_rate = config.feature_extractor_config.sampling_rate
         # Prefer new canonical names but expose deprecated ones for compatibility
         self.input_sampling_rate = getattr(config, "input_sampling_rate", getattr(config, "input_sample_rate", 16000))
         self.sampling_rate = getattr(config, "sampling_rate", getattr(config, "output_sample_rate", 16000))
@@ -1544,17 +1525,15 @@ class XYTokenizerModel(XYTokenizerPreTrainedModel):
                 overlap_seconds = audio_codes.overlap_seconds
         if overlap_seconds is None:
             overlap_seconds = 0
-        chunk_length = self.feature_extractor.chunk_length
+        chunk_length = self.chunk_length
         duration_seconds = chunk_length - overlap_seconds
         chunk_code_length = int(
-            chunk_length * self.feature_extractor.sampling_rate // self.config.encoder_downsample_rate
+            chunk_length * self.feature_extractor_sampling_rate // self.encoder_downsample_rate
         )  # Maximum code length per chunk
         duration_code_length = int(
-            duration_seconds * self.feature_extractor.sampling_rate // self.config.encoder_downsample_rate
+            duration_seconds * self.feature_extractor_sampling_rate // self.encoder_downsample_rate
         )  # Valid code length per chunk
-        duration_wav_length = (
-            duration_code_length * self.config.decoder_upsample_rate
-        )  # Valid waveform length per chunk
+        duration_wav_length = duration_code_length * self.decoder_upsample_rate  # Valid waveform length per chunk
 
         # Get maximum code length
         batch_size = audio_codes.shape[1]
@@ -1602,7 +1581,7 @@ class XYTokenizerModel(XYTokenizerPreTrainedModel):
         if wav_list:
             wav_tensor = torch.cat(wav_list, dim=-1)  # (B, 1, T_total)
             syn_wav_list = [
-                wav_tensor[i, :, : code_lengths[i] * self.config.decoder_upsample_rate] for i in range(batch_size)
+                wav_tensor[i, :, : code_lengths[i] * self.decoder_upsample_rate] for i in range(batch_size)
             ]  # B * (1, T,)
         else:
             syn_wav_list = [torch.zeros(1, 0, device=self.device) for _ in range(batch_size)]  # B * (1, 0,)
