@@ -244,6 +244,10 @@ class XYTokenizerResidualVQConfig(PretrainedConfig):
             Whether to use k-means initialization for codebook.
         kmeans_iters (`int`, *optional*, defaults to 10):
             Number of k-means iterations for initialization.
+        use_weight_norm (`bool`, *optional*, defaults to `False`):
+            Whether to use weight normalization on projection layers in ResidualVQ.
+            Weight normalization can help stabilize training but adds computational overhead.
+            Set to `True` for training/fine-tuning, `False` for inference-only.
     """
 
     model_type = "xy_tokenizer_residual_vq"
@@ -264,6 +268,7 @@ class XYTokenizerResidualVQConfig(PretrainedConfig):
         threshold_ema_dead: int = 2,
         kmeans_init: bool = True,
         kmeans_iters: int = 10,
+        use_weight_norm: bool = False,
         **kwargs,
     ):
         self.input_dim = input_dim
@@ -281,6 +286,7 @@ class XYTokenizerResidualVQConfig(PretrainedConfig):
         self.threshold_ema_dead = threshold_ema_dead
         self.kmeans_init = kmeans_init
         self.kmeans_iters = kmeans_iters
+        self.use_weight_norm = use_weight_norm
         super().__init__(**kwargs)
 
 
