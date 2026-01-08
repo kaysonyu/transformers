@@ -349,6 +349,8 @@ OBJECTS_TO_IGNORE = {
     "MobileViTModel",
     "MobileViTV2Model",
     "MLukeTokenizer",
+    "MossTTSDConfig",
+    "MossTTSDProcessor",
     "MraConfig",
     "MusicgenDecoderConfig",
     "MusicgenForConditionalGeneration",

@@ -280,6 +280,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("modernbert-decoder", "ModernBertDecoderModel"),
         ("moonshine", "MoonshineModel"),
         ("moshi", "MoshiModel"),
+        ("moss_ttsd", "MossTTSDModel"),
         ("mpnet", "MPNetModel"),
         ("mpt", "MptModel"),
         ("mra", "MraModel"),
@@ -444,6 +445,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("xlnet", "XLNetModel"),
         ("xlstm", "xLSTMModel"),
         ("xmod", "XmodModel"),
+        ("xy_tokenizer", "XYTokenizer"),
         ("yolos", "YolosModel"),
         ("yoso", "YosoModel"),
         ("zamba", "ZambaModel"),
@@ -504,6 +506,7 @@ MODEL_FOR_PRETRAINING_MAPPING_NAMES = OrderedDict(
         ("mistral3", "Mistral3ForConditionalGeneration"),
         ("mllama", "MllamaForConditionalGeneration"),
         ("mobilebert", "MobileBertForPreTraining"),
+        ("moss_ttsd", "MossTTSDForCausalLM"),
         ("mpnet", "MPNetForMaskedLM"),
         ("mpt", "MptForCausalLM"),
         ("mra", "MraForMaskedLM"),
@@ -722,6 +725,7 @@ MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = OrderedDict(
         ("mllama", "MllamaForCausalLM"),
         ("modernbert-decoder", "ModernBertDecoderForCausalLM"),
         ("moshi", "MoshiForCausalLM"),
+        ("moss_ttsd", "MossTTSDForCausalLM"),
         ("mpt", "MptForCausalLM"),
         ("musicgen", "MusicgenForCausalLM"),
         ("musicgen_melody", "MusicgenMelodyForCausalLM"),
@@ -1815,6 +1819,7 @@ MODEL_FOR_IMAGE_TO_IMAGE_MAPPING_NAMES = OrderedDict(
 MODEL_FOR_AUDIO_TOKENIZATION_NAMES = OrderedDict(
     [
         ("dac", "DacModel"),
+        ("xy_tokenizer", "XYTokenizer"),
     ]
 )
 
