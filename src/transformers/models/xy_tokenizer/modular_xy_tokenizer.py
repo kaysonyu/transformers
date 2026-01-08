@@ -1400,94 +1400,93 @@ class XYTokenizerModel(XYTokenizerPreTrainedModel):
             return self._encode(features, n_quantizers, return_dict)
 
         # Handle streaming/chunked case
-        else:
-            # Use a dictionary to group chunks by their original sequence ID
-            encodings = defaultdict(lambda: {"zq": [], "codes": [], "length": 0})
-            commit_losses = []
-            total_frames = 0
+        # Use a dictionary to group chunks by their original sequence ID
+        encodings = defaultdict(lambda: {"zq": [], "codes": [], "length": 0})
+        commit_losses = []
+        total_frames = 0
 
-            # 1. Iterate through chunks and store intermediate results
-            for chunk_features in features:
-                # Always use return_dict=True for easier access to named outputs
-                chunk_output = self._encode(chunk_features, n_quantizers, return_dict=True)
-                valid_code_lengths, valid_code_ranges = self.scale_window_size(
-                    chunk_features["input_lengths"], self.encoder_downsample_rate
-                )
-
-                # Accumulate weighted commit loss
-                chunk_length = chunk_output.codes_lengths.sum().item()
-                valid_chunk_length = sum(valid_code_lengths)
-                if chunk_output.commit_loss is not None and valid_chunk_length > 0:
-                    commit_loss = chunk_output.commit_loss / chunk_length * valid_chunk_length
-                    commit_losses.append((commit_loss.cpu(), valid_chunk_length))
-                    total_frames += valid_chunk_length
-
-                # Group results by original sequence ID
-                for i, seq_id in enumerate(chunk_features["chunk_seq_no"].tolist()):
-                    valid_code_range = valid_code_ranges[i]
-                    if valid_code_range.stop > 0:
-                        encodings[seq_id]["zq"].append(
-                            chunk_output.quantized_representation[i : i + 1, :, valid_code_range]
-                        )
-                        encodings[seq_id]["codes"].append(chunk_output.audio_codes[:, i : i + 1, valid_code_range])
-                        # Add the valid length of this chunk to the total for this sequence
-                        encodings[seq_id]["length"] += valid_code_lengths[i]
-
-            final_outputs = []
-            for seq_id, seq_data in encodings.items():
-                final_outputs.append(
-                    {
-                        "zq": torch.cat(seq_data["zq"], dim=2),
-                        "codes": torch.cat(seq_data["codes"], dim=2),
-                        "length": seq_data["length"],
-                    }
-                )
-
-            # 3. Pad all sequences to the same length and stack into a batch
-            max_len = max(seq["zq"].shape[2] for seq in final_outputs)
-
-            batch_zq = []
-            batch_codes = []
-            batch_lengths = []
-
-            for seq in final_outputs:
-                pad_amount = max_len - seq["zq"].shape[2]
-                # Pad on the right side of the last dimension (time)
-                padded_zq = F.pad(seq["zq"], (0, pad_amount))
-                padded_codes = F.pad(seq["codes"], (0, pad_amount))
-
-                batch_zq.append(padded_zq)
-                batch_codes.append(padded_codes)
-                batch_lengths.append(seq["length"])
-
-            # Stack the list of tensors into a single batch tensor
-            quantized_representation = torch.cat(batch_zq, dim=0)
-            audio_codes = torch.cat(batch_codes, dim=0)
-            codes_lengths = torch.tensor(batch_lengths, dtype=torch.long, device=self.device)
-
-            # 4. Calculate final commit loss
-            if total_frames > 0:
-                # Weighted average of commit losses
-                commit_loss = sum(loss * length for loss, length in commit_losses) / total_frames
-                commit_loss = commit_loss.to(self.device)
-            else:
-                commit_loss = torch.tensor(0.0, device=self.device)
-
-            if not return_dict:
-                return (
-                    quantized_representation,
-                    audio_codes,
-                    codes_lengths,
-                    commit_loss,
-                )
-
-            return XYTokenizerEncoderOutput(
-                quantized_representation=quantized_representation,
-                audio_codes=audio_codes,
-                codes_lengths=codes_lengths,
-                commit_loss=commit_loss,
-                overlap_seconds=features.overlap_seconds,
+        # 1. Iterate through chunks and store intermediate results
+        for chunk_features in features:
+            # Always use return_dict=True for easier access to named outputs
+            chunk_output = self._encode(chunk_features, n_quantizers, return_dict=True)
+            valid_code_lengths, valid_code_ranges = self.scale_window_size(
+                chunk_features["input_lengths"], self.encoder_downsample_rate
             )
+
+            # Accumulate weighted commit loss
+            chunk_length = chunk_output.codes_lengths.sum().item()
+            valid_chunk_length = sum(valid_code_lengths)
+            if chunk_output.commit_loss is not None and valid_chunk_length > 0:
+                commit_loss = chunk_output.commit_loss / chunk_length * valid_chunk_length
+                commit_losses.append((commit_loss.cpu(), valid_chunk_length))
+                total_frames += valid_chunk_length
+
+            # Group results by original sequence ID
+            for i, seq_id in enumerate(chunk_features["chunk_seq_no"].tolist()):
+                valid_code_range = valid_code_ranges[i]
+                if valid_code_range.stop > 0:
+                    encodings[seq_id]["zq"].append(
+                        chunk_output.quantized_representation[i : i + 1, :, valid_code_range]
+                    )
+                    encodings[seq_id]["codes"].append(chunk_output.audio_codes[:, i : i + 1, valid_code_range])
+                    # Add the valid length of this chunk to the total for this sequence
+                    encodings[seq_id]["length"] += valid_code_lengths[i]
+
+        final_outputs = []
+        for seq_id, seq_data in encodings.items():
+            final_outputs.append(
+                {
+                    "zq": torch.cat(seq_data["zq"], dim=2),
+                    "codes": torch.cat(seq_data["codes"], dim=2),
+                    "length": seq_data["length"],
+                }
+            )
+
+        # 3. Pad all sequences to the same length and stack into a batch
+        max_len = max(seq["zq"].shape[2] for seq in final_outputs)
+
+        batch_zq = []
+        batch_codes = []
+        batch_lengths = []
+
+        for seq in final_outputs:
+            pad_amount = max_len - seq["zq"].shape[2]
+            # Pad on the right side of the last dimension (time)
+            padded_zq = F.pad(seq["zq"], (0, pad_amount))
+            padded_codes = F.pad(seq["codes"], (0, pad_amount))
+
+            batch_zq.append(padded_zq)
+            batch_codes.append(padded_codes)
+            batch_lengths.append(seq["length"])
+
+        # Stack the list of tensors into a single batch tensor
+        quantized_representation = torch.cat(batch_zq, dim=0)
+        audio_codes = torch.cat(batch_codes, dim=0)
+        codes_lengths = torch.tensor(batch_lengths, dtype=torch.long, device=self.device)
+
+        # 4. Calculate final commit loss
+        if total_frames > 0:
+            # Weighted average of commit losses
+            commit_loss = sum(loss * length for loss, length in commit_losses) / total_frames
+            commit_loss = commit_loss.to(self.device)
+        else:
+            commit_loss = torch.tensor(0.0, device=self.device)
+
+        if not return_dict:
+            return (
+                quantized_representation,
+                audio_codes,
+                codes_lengths,
+                commit_loss,
+            )
+
+        return XYTokenizerEncoderOutput(
+            quantized_representation=quantized_representation,
+            audio_codes=audio_codes,
+            codes_lengths=codes_lengths,
+            commit_loss=commit_loss,
+            overlap_seconds=features.overlap_seconds,
+        )
 
     def _encode(
         self,
