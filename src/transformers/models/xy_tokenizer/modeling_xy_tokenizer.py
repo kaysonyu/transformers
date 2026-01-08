@@ -1198,7 +1198,7 @@ class XYTokenizerPreTrainedModel(PreTrainedAudioTokenizerBase):
     "The XY-Tokenizer Model for encoding and decoding audio.",
     XY_TOKENIZER_START_DOCSTRING,
 )
-class XYTokenizerModel(XYTokenizerPreTrainedModel):
+class XYTokenizer(XYTokenizerPreTrainedModel):
     @staticmethod
     def _get_encoder_kwargs(encoder_config):
         """Convert encoder config to kwargs dict for XYTokenizerEncoder."""
@@ -1765,4 +1765,4 @@ class XYTokenizerModel(XYTokenizerPreTrainedModel):
         )
 
 
-__all__ = ["XYTokenizerModel"]
+__all__ = ["XYTokenizer"]
