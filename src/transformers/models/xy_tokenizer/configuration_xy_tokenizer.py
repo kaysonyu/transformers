@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 OpenMOSS and HuggingFace Inc. teams. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """XY-Tokenizer model configuration"""
-
-from typing import Optional, Union
 
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
@@ -255,8 +252,8 @@ class XYTokenizerResidualVQConfig(PretrainedConfig):
     def __init__(
         self,
         input_dim: int = 1280,
-        rvq_dim: Optional[int] = None,
-        output_dim: Optional[int] = None,
+        rvq_dim: int | None = None,
+        output_dim: int | None = None,
         num_quantizers: int = 32,
         codebook_size: int = 1024,
         codebook_dim: int = 8,
@@ -290,31 +287,51 @@ class XYTokenizerResidualVQConfig(PretrainedConfig):
         super().__init__(**kwargs)
 
 
-class XYTokenizerConvolutionConfig(PretrainedConfig):
+class XYTokenizerDownsampleConfig(PretrainedConfig):
     r"""
-    Configuration class for XYTokenizer convolution-based components (downsample and upsample).
+    Configuration class for XYTokenizer ResidualDownConv downsampling component.
 
     Args:
-        d_model (`int`, *optional*, defaults to 1280):
+        d_model (`int`, *optional*, defaults to 768):
             Model dimension.
-        downsample_avg_pooler (`int`, *optional*, defaults to 4):
+        avg_pooler (`int`, *optional*, defaults to 4):
             Downsampling pooling factor for ResidualDownConv.
-        upsample_stride (`int`, *optional*, defaults to 4):
-            Upsampling stride for UpConv.
     """
 
-    model_type = "xy_tokenizer_convolution"
+    model_type = "xy_tokenizer_downsample"
 
     def __init__(
         self,
-        d_model: int = 1280,
-        downsample_avg_pooler: int = 4,
-        upsample_stride: int = 4,
+        d_model: int = 768,
+        avg_pooler: int = 4,
         **kwargs,
     ):
         self.d_model = d_model
-        self.downsample_avg_pooler = downsample_avg_pooler
-        self.upsample_stride = upsample_stride
+        self.avg_pooler = avg_pooler
+        super().__init__(**kwargs)
+
+
+class XYTokenizerUpsampleConfig(PretrainedConfig):
+    r"""
+    Configuration class for XYTokenizer UpConv upsampling component.
+
+    Args:
+        d_model (`int`, *optional*, defaults to 768):
+            Model dimension.
+        stride (`int`, *optional*, defaults to 4):
+            Upsampling stride for UpConv.
+    """
+
+    model_type = "xy_tokenizer_upsample"
+
+    def __init__(
+        self,
+        d_model: int = 768,
+        stride: int = 4,
+        **kwargs,
+    ):
+        self.d_model = d_model
+        self.stride = stride
         super().__init__(**kwargs)
 
 
@@ -412,7 +429,7 @@ class XYTokenizerFeatureExtractorConfig(PretrainedConfig):
         padding_value: float = 0.0,
         dither: float = 0.0,
         return_attention_mask: bool = False,
-        max_frequency: Optional[float] = None,
+        max_frequency: float | None = None,
         batch_size: int = 8,
         overlap_side: str = "both",
         **kwargs,
@@ -471,9 +488,10 @@ class XYTokenizerConfig(PretrainedConfig):
             Configuration for the acoustic decoder. If not provided, uses default XYTokenizerDecoderConfig.
         quantizer_config (`Union[dict, XYTokenizerResidualVQConfig]`, *optional*):
             Configuration for the residual vector quantizer. If not provided, uses default XYTokenizerResidualVQConfig.
-        convolution_config (`Union[dict, XYTokenizerConvolutionConfig]`, *optional*):
-            Configuration for convolution components (downsample and upsample). If not provided, uses default
-            XYTokenizerConvolutionConfig.
+        downsample_config (`Union[dict, XYTokenizerDownsampleConfig]`, *optional*):
+            Configuration for the downsampling component. If not provided, uses default XYTokenizerDownsampleConfig.
+        upsample_config (`Union[dict, XYTokenizerUpsampleConfig]`, *optional*):
+            Configuration for the upsampling component. If not provided, uses default XYTokenizerUpsampleConfig.
         vocos_config (`Union[dict, XYTokenizerVocosConfig]`, *optional*):
             Configuration for the Vocos vocoder. If not provided, uses default XYTokenizerVocosConfig.
         feature_extractor_config (`Union[dict, XYTokenizerFeatureExtractorConfig]`, *optional*):
@@ -505,7 +523,8 @@ class XYTokenizerConfig(PretrainedConfig):
         "post_rvq_adapter_config": XYTokenizerTransformerConfig,
         "acoustic_decoder_config": XYTokenizerDecoderConfig,
         "quantizer_config": XYTokenizerResidualVQConfig,
-        "convolution_config": XYTokenizerConvolutionConfig,
+        "downsample_config": XYTokenizerDownsampleConfig,
+        "upsample_config": XYTokenizerUpsampleConfig,
         "vocos_config": XYTokenizerVocosConfig,
         "feature_extractor_config": XYTokenizerFeatureExtractorConfig,
     }
@@ -518,16 +537,17 @@ class XYTokenizerConfig(PretrainedConfig):
         decoder_upsample_rate: int = 1920,
         initializer_range: float = 0.02,
         use_cache: bool = True,
-        semantic_encoder_config: Optional[Union[dict, XYTokenizerEncoderConfig]] = None,
-        acoustic_encoder_config: Optional[Union[dict, XYTokenizerEncoderConfig]] = None,
-        semantic_encoder_adapter_config: Optional[Union[dict, XYTokenizerTransformerConfig]] = None,
-        pre_rvq_adapter_config: Optional[Union[dict, XYTokenizerTransformerConfig]] = None,
-        post_rvq_adapter_config: Optional[Union[dict, XYTokenizerTransformerConfig]] = None,
-        acoustic_decoder_config: Optional[Union[dict, XYTokenizerDecoderConfig]] = None,
-        quantizer_config: Optional[Union[dict, XYTokenizerResidualVQConfig]] = None,
-        convolution_config: Optional[Union[dict, XYTokenizerConvolutionConfig]] = None,
-        vocos_config: Optional[Union[dict, XYTokenizerVocosConfig]] = None,
-        feature_extractor_config: Optional[Union[dict, XYTokenizerFeatureExtractorConfig]] = None,
+        semantic_encoder_config: dict | XYTokenizerEncoderConfig | None = None,
+        acoustic_encoder_config: dict | XYTokenizerEncoderConfig | None = None,
+        semantic_encoder_adapter_config: dict | XYTokenizerTransformerConfig | None = None,
+        pre_rvq_adapter_config: dict | XYTokenizerTransformerConfig | None = None,
+        post_rvq_adapter_config: dict | XYTokenizerTransformerConfig | None = None,
+        acoustic_decoder_config: dict | XYTokenizerDecoderConfig | None = None,
+        quantizer_config: dict | XYTokenizerResidualVQConfig | None = None,
+        downsample_config: dict | XYTokenizerDownsampleConfig | None = None,
+        upsample_config: dict | XYTokenizerUpsampleConfig | None = None,
+        vocos_config: dict | XYTokenizerVocosConfig | None = None,
+        feature_extractor_config: dict | XYTokenizerFeatureExtractorConfig | None = None,
         **kwargs,
     ):
         # Backward compatibility: handle old params pattern
@@ -550,7 +570,8 @@ class XYTokenizerConfig(PretrainedConfig):
             self.post_rvq_adapter_config = self._init_subconfig(post_rvq_adapter_config, XYTokenizerTransformerConfig)
             self.acoustic_decoder_config = self._init_subconfig(acoustic_decoder_config, XYTokenizerDecoderConfig)
             self.quantizer_config = self._init_subconfig(quantizer_config, XYTokenizerResidualVQConfig)
-            self.convolution_config = self._init_subconfig(convolution_config, XYTokenizerConvolutionConfig)
+            self.downsample_config = self._init_subconfig(downsample_config, XYTokenizerDownsampleConfig)
+            self.upsample_config = self._init_subconfig(upsample_config, XYTokenizerUpsampleConfig)
             self.vocos_config = self._init_subconfig(vocos_config, XYTokenizerVocosConfig)
             self.feature_extractor_config = self._init_subconfig(
                 feature_extractor_config, XYTokenizerFeatureExtractorConfig
@@ -576,7 +597,7 @@ class XYTokenizerConfig(PretrainedConfig):
 
         super().__init__(**kwargs)
 
-    def _init_subconfig(self, config: Optional[Union[dict, PretrainedConfig]], config_class: type) -> PretrainedConfig:
+    def _init_subconfig(self, config: dict | PretrainedConfig | None, config_class: type) -> PretrainedConfig:
         """
         Initialize a sub-config from None, dict, or existing config instance.
 
@@ -655,18 +676,17 @@ class XYTokenizerConfig(PretrainedConfig):
         else:
             self.quantizer_config = XYTokenizerResidualVQConfig()
 
-        # Migrate convolution components (downsample + upsample)
-        conv_kwargs = {}
+        # Migrate downsample component
         if "downsample_kwargs" in params:
-            conv_kwargs["downsample_avg_pooler"] = params["downsample_kwargs"].get("avg_pooler", 4)
-            conv_kwargs["d_model"] = params["downsample_kwargs"].get("d_model", 1280)
+            self.downsample_config = XYTokenizerDownsampleConfig(**params["downsample_kwargs"])
+        else:
+            self.downsample_config = XYTokenizerDownsampleConfig()
+
+        # Migrate upsample component
         if "upsample_kwargs" in params:
-            conv_kwargs["upsample_stride"] = params["upsample_kwargs"].get("stride", 4)
-            if "d_model" not in conv_kwargs:
-                conv_kwargs["d_model"] = params["upsample_kwargs"].get("d_model", 1280)
-        self.convolution_config = (
-            XYTokenizerConvolutionConfig(**conv_kwargs) if conv_kwargs else XYTokenizerConvolutionConfig()
-        )
+            self.upsample_config = XYTokenizerUpsampleConfig(**params["upsample_kwargs"])
+        else:
+            self.upsample_config = XYTokenizerUpsampleConfig()
 
         # Migrate Vocos
         if "vocos_kwargs" in params:
@@ -687,7 +707,8 @@ __all__ = [
     "XYTokenizerDecoderConfig",
     "XYTokenizerTransformerConfig",
     "XYTokenizerResidualVQConfig",
-    "XYTokenizerConvolutionConfig",
+    "XYTokenizerDownsampleConfig",
+    "XYTokenizerUpsampleConfig",
     "XYTokenizerVocosConfig",
     "XYTokenizerFeatureExtractorConfig",
 ]

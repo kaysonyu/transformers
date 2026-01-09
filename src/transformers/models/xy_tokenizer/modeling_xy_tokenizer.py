@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 OpenMOSS and HuggingFace Inc. teams. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +15,6 @@
 import math
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from typing import Optional, Union
 
 import numpy as np
 
@@ -63,8 +61,8 @@ class XYTokenizerEncoderOutput(ModelOutput):
     quantized_representation: torch.FloatTensor = None
     audio_codes: torch.LongTensor = None
     codes_lengths: torch.LongTensor = None
-    commit_loss: Optional[torch.FloatTensor] = None
-    overlap_seconds: Optional[int] = None
+    commit_loss: torch.FloatTensor | None = None
+    overlap_seconds: int | None = None
 
 
 @dataclass
@@ -80,7 +78,7 @@ class XYTokenizerDecoderOutput(ModelOutput):
     """
 
     audio_values: torch.FloatTensor = None
-    output_length: Optional[torch.LongTensor] = None
+    output_length: torch.LongTensor | None = None
 
 
 @dataclass
@@ -108,7 +106,7 @@ class XYTokenizerOutput(ModelOutput):
     quantized_representation: torch.FloatTensor = None
     audio_codes: torch.LongTensor = None
     codes_lengths: torch.LongTensor = None
-    commit_loss: Optional[torch.FloatTensor] = None
+    commit_loss: torch.FloatTensor | None = None
 
 
 @dataclass
@@ -195,10 +193,10 @@ class XYTokenizerAttention(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        seq_len: Optional[torch.Tensor] = None,
+        attention_mask: torch.Tensor | None = None,
+        seq_len: torch.Tensor | None = None,
         output_attentions: bool = False,
-    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Input shape: Batch x Time x Channel"""
         bsz, tgt_len, _ = hidden_states.size()
 
@@ -324,10 +322,10 @@ class XYTokenizerTransformerLayer(GradientCheckpointingLayer):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        seq_len: Optional[torch.Tensor] = None,
+        attention_mask: torch.Tensor | None = None,
+        seq_len: torch.Tensor | None = None,
         output_attentions: bool = False,
-    ) -> tuple[torch.FloatTensor, Optional[tuple[torch.FloatTensor, torch.FloatTensor]]]:
+    ) -> tuple[torch.FloatTensor, tuple[torch.FloatTensor, torch.FloatTensor] | None]:
         """
         Args:
             hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
@@ -922,8 +920,8 @@ class ResidualVQ(nn.Module):
     def __init__(
         self,
         input_dim: int = 1280,
-        rvq_dim: Optional[int] = None,
-        output_dim: Optional[int] = None,
+        rvq_dim: int | None = None,
+        output_dim: int | None = None,
         num_quantizers: int = 32,
         codebook_size: int = 1024,
         codebook_dim: int = 8,
@@ -978,7 +976,7 @@ class ResidualVQ(nn.Module):
             ]
         )
 
-    def forward(self, z, input_length, n_quantizers: Optional[int] = None):
+    def forward(self, z, input_length, n_quantizers: int | None = None):
         z = self.input_proj(z)
 
         with torch.autocast("cuda", enabled=False):
@@ -1075,7 +1073,7 @@ class ResidualVQ(nn.Module):
         self,
         batch_size: int,
         device: torch.device,
-        n_quantizers_override: Optional[int] = None,
+        n_quantizers_override: int | None = None,
     ) -> torch.Tensor:
         """
         Determines the number of quantizers to use for each item in the batch,
@@ -1097,7 +1095,7 @@ class ResidualVQ(nn.Module):
 
         return n_q_tensor
 
-    def _get_skip_mask(self, batch_size: int, device: torch.device) -> Optional[torch.Tensor]:
+    def _get_skip_mask(self, batch_size: int, device: torch.device) -> torch.Tensor | None:
         """Generates a mask for skipping RVQ during training if skip_rvq_ratio > 0."""
         is_training = self.training and torch.is_grad_enabled()
         if not is_training or self.skip_rvq_ratio <= 0:
@@ -1303,14 +1301,14 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
         self.acoustic_encoder = XYTokenizerEncoder(**self._get_encoder_kwargs(config.acoustic_encoder_config))
         self.pre_rvq_adapter = XYTokenizerTransformer(**self._get_transformer_kwargs(config.pre_rvq_adapter_config))
         self.downsample = ResidualDownConv(
-            d_model=config.convolution_config.d_model,
-            avg_pooler=config.convolution_config.downsample_avg_pooler,
+            d_model=config.downsample_config.d_model,
+            avg_pooler=config.downsample_config.avg_pooler,
         )
         self.quantizer = ResidualVQ(**self._get_quantizer_kwargs(config.quantizer_config))
         self.post_rvq_adapter = XYTokenizerTransformer(**self._get_transformer_kwargs(config.post_rvq_adapter_config))
         self.upsample = UpConv(
-            d_model=config.convolution_config.d_model,
-            stride=config.convolution_config.upsample_stride,
+            d_model=config.upsample_config.d_model,
+            stride=config.upsample_config.stride,
         )
         self.acoustic_decoder = XYTokenizerDecoder(**self._get_decoder_kwargs(config.acoustic_decoder_config))
         self.enhanced_vocos = Vocos(**self._get_vocos_kwargs(config.vocos_config))
@@ -1368,10 +1366,10 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
     @torch.no_grad()
     def encode(
         self,
-        features: Union[BatchFeature, ExtractorIterator],
-        n_quantizers: Optional[int] = None,
-        return_dict: Optional[bool] = True,
-    ) -> Union[XYTokenizerEncoderOutput, tuple]:
+        features: BatchFeature | ExtractorIterator,
+        n_quantizers: int | None = None,
+        return_dict: bool | None = True,
+    ) -> XYTokenizerEncoderOutput | tuple:
         r"""
         Encodes the input audio waveform into discrete codes.
 
@@ -1485,9 +1483,9 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
     def _encode(
         self,
         features: BatchFeature,
-        n_quantizers: Optional[int] = None,
-        return_dict: Optional[bool] = True,
-    ) -> Union[XYTokenizerEncoderOutput, tuple]:
+        n_quantizers: int | None = None,
+        return_dict: bool | None = True,
+    ) -> XYTokenizerEncoderOutput | tuple:
         input_mel = features["input_features"].to(self.device, dtype=self.dtype)
         mel_attention_mask = features["attention_mask"].to(self.device)
         mel_output_length = mel_attention_mask.sum(dim=-1).long()
@@ -1526,10 +1524,10 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
     @torch.no_grad()
     def decode(
         self,
-        audio_codes: Union[torch.Tensor, XYTokenizerEncoderOutput],
+        audio_codes: torch.Tensor | XYTokenizerEncoderOutput,
         overlap_seconds: int = 10,
-        return_dict: Optional[bool] = True,
-    ) -> Union[XYTokenizerDecoderOutput, tuple]:
+        return_dict: bool | None = True,
+    ) -> XYTokenizerDecoderOutput | tuple:
         r"""
         Decodes discrete codes back into an audio waveform.
 
@@ -1622,9 +1620,9 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
     def _decode(
         self,
         audio_codes: torch.Tensor,
-        codes_lengths: Optional[torch.Tensor] = None,
-        return_dict: Optional[bool] = True,
-    ) -> Union[XYTokenizerDecoderOutput, tuple]:
+        codes_lengths: torch.Tensor | None = None,
+        return_dict: bool | None = True,
+    ) -> XYTokenizerDecoderOutput | tuple:
         r"""
         Decodes discrete codes back into an audio waveform.
 
@@ -1664,10 +1662,10 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
     def forward(
         self,
         input_values: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        n_quantizers: Optional[int] = None,
-        return_dict: Optional[bool] = True,
-    ) -> Union[XYTokenizerOutput, tuple]:
+        attention_mask: torch.Tensor | None = None,
+        n_quantizers: int | None = None,
+        return_dict: bool | None = True,
+    ) -> XYTokenizerOutput | tuple:
         r"""
         The forward method that handles the full encoding and decoding process.
 
