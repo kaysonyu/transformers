@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 OpenMOSS and HuggingFace Inc. teams. All rights reserved.
 #
 #

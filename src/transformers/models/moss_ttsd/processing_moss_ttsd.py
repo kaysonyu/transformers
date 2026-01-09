@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 OpenMOSS and the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -776,7 +775,7 @@ class MossTTSDProcessor(ProcessorMixin):
             if sample.input_ids_2d.shape[1] != max_channels:
                 # Simplified: for clipping/extending channels, only pad/clip on the right side
                 T, C = sample.input_ids_2d.shape
-                if C > max_channels:
+                if max_channels < C:
                     sample.input_ids_2d = sample.input_ids_2d[:, :max_channels]
                 else:
                     pad = torch.full((T, max_channels - C), audio_pad_token_id, dtype=torch.long)

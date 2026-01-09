@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 OpenMOSS and HuggingFace Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +18,6 @@ Feature extractor class for XY-Tokenizer
 import math
 from collections import deque
 from functools import partial
-from typing import Optional, Union
 
 import numpy as np
 
@@ -254,17 +252,17 @@ class XYTokenizerFeatureExtractor(WhisperFeatureExtractor):
 
     def __call__(
         self,
-        raw_speech: Union[np.ndarray, list[np.ndarray]],
+        raw_speech: np.ndarray | list[np.ndarray],
         truncation: bool = True,
-        pad_to_multiple_of: Optional[int] = None,
-        return_tensors: Optional[Union[str, TensorType]] = None,
-        return_attention_mask: Optional[bool] = None,
-        padding: Optional[str] = "max_length",
-        max_length: Optional[int] = None,
-        sampling_rate: Optional[int] = None,
-        do_normalize: Optional[bool] = None,
-        device: Optional[str] = "cpu",
-        return_token_timestamps: Optional[bool] = None,
+        pad_to_multiple_of: int | None = None,
+        return_tensors: str | TensorType | None = None,
+        return_attention_mask: bool | None = None,
+        padding: str | None = "max_length",
+        max_length: int | None = None,
+        sampling_rate: int | None = None,
+        do_normalize: bool | None = None,
+        device: str | None = "cpu",
+        return_token_timestamps: bool | None = None,
         overlap_seconds: int = 10,
         **kwargs,
     ) -> ExtractorIterator:

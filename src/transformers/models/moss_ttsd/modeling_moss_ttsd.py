@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 OpenMOSS and the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,6 @@
 """PyTorch MOSS-TTSD model."""
 
 from dataclasses import dataclass
-from typing import Optional, Union
 
 from ...cache_utils import Cache
 from ...generation import GenerationConfig, GenerationMixin, LogitsProcessorList, StoppingCriteriaList
@@ -60,13 +58,13 @@ class MossTTSDOutputWithPast(ModelOutput):
         Tuple containing all logit outputs from different model heads.
     """
 
-    loss: Optional[torch.FloatTensor] = None
+    loss: torch.FloatTensor | None = None
     logits: torch.FloatTensor = None
-    loss_all: Optional[tuple[torch.FloatTensor, ...]] = None
-    logits_all: Optional[tuple[torch.FloatTensor, ...]] = None
-    past_key_values: Optional[tuple[tuple[torch.FloatTensor, ...], ...]] = None
-    hidden_states: Optional[tuple[torch.FloatTensor, ...]] = None
-    attentions: Optional[tuple[torch.FloatTensor, ...]] = None
+    loss_all: tuple[torch.FloatTensor, ...] | None = None
+    logits_all: tuple[torch.FloatTensor, ...] | None = None
+    past_key_values: tuple[tuple[torch.FloatTensor, ...], ...] | None = None
+    hidden_states: tuple[torch.FloatTensor, ...] | None = None
+    attentions: tuple[torch.FloatTensor, ...] | None = None
 
 
 @dataclass
@@ -92,11 +90,11 @@ class MossTTSDCausalLMOutputWithPast(ModelOutput):
         sequence_length)`.
     """
 
-    loss: Optional[torch.FloatTensor] = None
+    loss: torch.FloatTensor | None = None
     logits: torch.FloatTensor = None
-    past_key_values: Optional[Cache] = None
-    hidden_states: Optional[tuple[torch.FloatTensor, ...]] = None
-    attentions: Optional[tuple[torch.FloatTensor, ...]] = None
+    past_key_values: Cache | None = None
+    hidden_states: tuple[torch.FloatTensor, ...] | None = None
+    attentions: tuple[torch.FloatTensor, ...] | None = None
 
 
 class MossTTSDGenerationMixin(GenerationMixin):
@@ -173,7 +171,7 @@ class MossTTSDGenerationMixin(GenerationMixin):
         tf_inputs: torch.LongTensor,
         base_length: int,
         channels: int,
-        eos_token_id: Optional[int],
+        eos_token_id: int | None,
         speech_pad_idx: int,
         unfinished_sequences: torch.LongTensor,
         has_eos_stopping_criteria: bool,
@@ -209,9 +207,9 @@ class MossTTSDGenerationMixin(GenerationMixin):
         stopping_criteria: StoppingCriteriaList,
         generation_config: GenerationConfig,
         synced_gpus: bool,
-        streamer: Optional[BaseStreamer],
+        streamer: BaseStreamer | None,
         **model_kwargs,
-    ) -> Union[GenerateDecoderOnlyOutput, torch.LongTensor]:
+    ) -> GenerateDecoderOnlyOutput | torch.LongTensor:
         """Sample method for multi-channel TTS generation."""
         # Extract configuration parameters
         speech_pad_idx = getattr(self.config, "speech_pad_token", 1024)
@@ -399,18 +397,18 @@ class MossTTSDModel(MossTTSDPretrainedModel):
 
     def forward(
         self,
-        input_ids: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[list[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        cache_position: Optional[torch.LongTensor] = None,
+        input_ids: torch.LongTensor | None = None,
+        attention_mask: torch.Tensor | None = None,
+        position_ids: torch.LongTensor | None = None,
+        past_key_values: list[torch.FloatTensor] | None = None,
+        inputs_embeds: torch.FloatTensor | None = None,
+        use_cache: bool | None = None,
+        output_attentions: bool | None = None,
+        output_hidden_states: bool | None = None,
+        return_dict: bool | None = None,
+        cache_position: torch.LongTensor | None = None,
         **kwargs,
-    ) -> Union[tuple, BaseModelOutputWithPast]:
+    ) -> tuple | BaseModelOutputWithPast:
         """Forward pass for MOSS-TTSD model."""
         if (input_ids is None) ^ (inputs_embeds is not None):
             raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
@@ -492,7 +490,7 @@ class MossTTSDForCausalLM(MossTTSDPretrainedModel, MossTTSDGenerationMixin):
 
     def _compute_loss(
         self, hidden_states: torch.Tensor, labels: torch.LongTensor, skip_logits: bool, **kwargs
-    ) -> tuple[torch.Tensor, torch.Tensor, Optional[tuple[torch.Tensor, ...]]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, tuple[torch.Tensor, ...] | None]:
         """Compute loss for all channels."""
         device = hidden_states.device
         loss_all = torch.empty(self.channels, device=device)
@@ -516,20 +514,20 @@ class MossTTSDForCausalLM(MossTTSDPretrainedModel, MossTTSDGenerationMixin):
 
     def forward(
         self,
-        input_ids: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Union[Cache, list[torch.FloatTensor]]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        cache_position: Optional[torch.LongTensor] = None,
-        skip_logits: Optional[bool] = None,
+        input_ids: torch.LongTensor | None = None,
+        attention_mask: torch.Tensor | None = None,
+        position_ids: torch.LongTensor | None = None,
+        past_key_values: Cache | list[torch.FloatTensor] | None = None,
+        inputs_embeds: torch.FloatTensor | None = None,
+        labels: torch.LongTensor | None = None,
+        use_cache: bool | None = None,
+        output_attentions: bool | None = None,
+        output_hidden_states: bool | None = None,
+        return_dict: bool | None = None,
+        cache_position: torch.LongTensor | None = None,
+        skip_logits: bool | None = None,
         **kwargs,
-    ) -> Union[tuple, MossTTSDOutputWithPast]:
+    ) -> tuple | MossTTSDOutputWithPast:
         """Forward pass for MOSS-TTSD causal language model."""
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
