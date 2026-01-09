@@ -83,9 +83,10 @@ class XYTokenizerModelTester:
         return config, input_values
 
     def get_config(self):
-        # Create config with nested kwargs structure that XY-Tokenizer expects
-        params = {
-            "semantic_encoder_kwargs": {
+        # Create config using new sub-configs format
+        return XYTokenizerConfig(
+            sampling_rate=self.sample_rate,
+            semantic_encoder_config={
                 "num_mel_bins": 128,
                 "sampling_rate": self.sample_rate,
                 "hop_length": 160,
@@ -96,7 +97,7 @@ class XYTokenizerModelTester:
                 "encoder_attention_heads": 4,
                 "encoder_ffn_dim": 256,
             },
-            "semantic_encoder_adapter_kwargs": {
+            semantic_encoder_adapter_config={
                 "input_dim": self.semantic_encoder_d_model,  # Input dimension from semantic encoder
                 "d_model": self.semantic_encoder_d_model,
                 "encoder_layers": 2,
@@ -104,7 +105,7 @@ class XYTokenizerModelTester:
                 "encoder_ffn_dim": 256,
                 "output_dim": self.semantic_encoder_d_model,
             },
-            "acoustic_encoder_kwargs": {
+            acoustic_encoder_config={
                 "num_mel_bins": 128,
                 "sampling_rate": self.sample_rate,
                 "hop_length": 160,
@@ -115,7 +116,7 @@ class XYTokenizerModelTester:
                 "encoder_attention_heads": 4,
                 "encoder_ffn_dim": 256,
             },
-            "pre_rvq_adapter_kwargs": {
+            pre_rvq_adapter_config={
                 "input_dim": self.semantic_encoder_d_model + self.acoustic_encoder_d_model,  # Concatenated dimension
                 "d_model": self.code_dim,
                 "encoder_layers": 2,
@@ -123,11 +124,11 @@ class XYTokenizerModelTester:
                 "encoder_ffn_dim": 256,
                 "output_dim": self.code_dim,
             },
-            "downsample_kwargs": {
+            downsample_config={
                 "d_model": self.code_dim,  # Should match pre_rvq_adapter output
                 "avg_pooler": 2,
             },
-            "quantizer_kwargs": {
+            quantizer_config={
                 "num_quantizers": self.num_quantizers,
                 "input_dim": self.code_dim * 2,  # downsample outputs intermediate_dim = d_model * avg_pooler
                 "rvq_dim": self.code_dim,
@@ -135,7 +136,7 @@ class XYTokenizerModelTester:
                 "codebook_size": self.codebook_size,
                 "codebook_dim": self.code_dim,
             },
-            "post_rvq_adapter_kwargs": {
+            post_rvq_adapter_config={
                 "input_dim": self.code_dim,  # Input from quantizer
                 "d_model": self.code_dim,
                 "encoder_layers": 2,
@@ -143,11 +144,11 @@ class XYTokenizerModelTester:
                 "encoder_ffn_dim": 256,
                 "output_dim": self.code_dim * 4,  # Output stride * d_model for upsample
             },
-            "upsample_kwargs": {
+            upsample_config={
                 "d_model": self.code_dim,
                 "stride": 4,
             },
-            "acoustic_decoder_kwargs": {
+            acoustic_decoder_config={
                 "num_mel_bins": 128,
                 "sampling_rate": self.sample_rate,
                 "hop_length": 160,
@@ -158,7 +159,7 @@ class XYTokenizerModelTester:
                 "decoder_attention_heads": 4,
                 "decoder_ffn_dim": 256,
             },
-            "vocos_kwargs": {
+            vocos_config={
                 "input_channels": self.code_dim,
                 "dim": 512,
                 "intermediate_dim": 2048,
@@ -166,23 +167,13 @@ class XYTokenizerModelTester:
                 "n_fft": 640,
                 "hop_size": 160,
             },
-            "feature_extractor_kwargs": {
+            feature_extractor_config={
                 "feature_size": 80,
                 "sampling_rate": self.sample_rate,
                 "hop_length": 160,
                 "chunk_length": 30,
                 "n_fft": 400,
             },
-        }
-
-        return XYTokenizerConfig(
-            num_quantizers=self.num_quantizers,
-            codebook_size=self.codebook_size,
-            code_dim=self.code_dim,
-            sampling_rate=self.sample_rate,
-            semantic_encoder_d_model=self.semantic_encoder_d_model,
-            acoustic_encoder_d_model=self.acoustic_encoder_d_model,
-            params=params,
         )
 
     def create_and_check_model_forward(self, config, input_values):
@@ -537,10 +528,10 @@ class XYTokenizerModelTest(ModelTesterMixin, unittest.TestCase):
 
         # Check codes are within valid range
         self.assertTrue(torch.all(result.audio_codes >= 0))
-        self.assertTrue(torch.all(result.audio_codes < config.codebook_size))
+        self.assertTrue(torch.all(result.audio_codes < config.quantizer_config.codebook_size))
 
         # Check number of quantizers
-        self.assertEqual(result.audio_codes.shape[0], config.num_quantizers)
+        self.assertEqual(result.audio_codes.shape[0], config.quantizer_config.num_quantizers)
 
     def test_flash_attn_2_inference_equivalence_right_padding(self):
         """Test Flash Attention 2 with right padding for XY tokenizer."""
