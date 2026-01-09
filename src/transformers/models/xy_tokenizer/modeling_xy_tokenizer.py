@@ -34,6 +34,8 @@ if is_torch_available():
     import torch.distributed as dist
     import torch.nn as nn
     import torch.nn.functional as F
+    from torch.nn.utils import parametrize
+    from torch.nn.utils.parametrizations import weight_norm
 
 logger = logging.get_logger(__name__)
 
@@ -927,7 +929,6 @@ class ResidualVQ(nn.Module):
         codebook_dim: int = 8,
         quantizer_dropout: float = 0.5,
         skip_rvq_ratio: float = 0.0,
-        use_weight_norm: bool = False,
         vq_config: _VectorQuantizerParams = None,
         **kwargs,
     ):
@@ -943,23 +944,15 @@ class ResidualVQ(nn.Module):
             codebook_dim,
         )
         self.quantizer_dropout, self.skip_rvq_ratio = quantizer_dropout, skip_rvq_ratio
-        self.use_weight_norm = use_weight_norm
 
-        weight_norm_fn = nn.utils.weight_norm
-        if hasattr(nn.utils.parametrizations, "weight_norm"):
-            weight_norm_fn = nn.utils.parametrizations.weight_norm
-
+        # Note: Weight norm is only applied during conversion, not in the model itself
         if input_dim != rvq_dim:
             self.input_proj = nn.Conv1d(input_dim, rvq_dim, 1)
-            if use_weight_norm:
-                self.input_proj = weight_norm_fn(self.input_proj, name="weight")
         else:
             self.input_proj = nn.Identity()
 
         if rvq_dim != self.output_dim:
             self.output_proj = nn.Conv1d(rvq_dim, self.output_dim, 1)
-            if use_weight_norm:
-                self.output_proj = weight_norm_fn(self.output_proj, name="weight")
         else:
             self.output_proj = nn.Identity()
 
@@ -1272,7 +1265,6 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
             "codebook_dim": quantizer_config.codebook_dim,
             "quantizer_dropout": quantizer_config.quantizer_dropout,
             "skip_rvq_ratio": quantizer_config.skip_rvq_ratio,
-            "use_weight_norm": quantizer_config.use_weight_norm,
             "vq_config": vq_config,
         }
 
@@ -1339,28 +1331,46 @@ class XYTokenizer(XYTokenizerPreTrainedModel):
             scaling_boundaries.append(slice(scaling_left_boundary, scaling_right_boundary))
         return scaling_range, scaling_boundaries
 
-    def apply_weight_norm(self):
-        """Apply weight normalization to quantizer projection layers for checkpoint conversion."""
-        if self.quantizer.use_weight_norm:
-            return
+    def apply_weight_norm(self, legacy: bool = True):
+        """Apply weight normalization to quantizer projection layers for checkpoint conversion.
 
-        weight_norm = nn.utils.weight_norm
-        if hasattr(nn.utils.parametrizations, "weight_norm"):
-            weight_norm = nn.utils.parametrizations.weight_norm
+        Args:
+            legacy (`bool`, *optional*, defaults to `True`):
+                If True, use the old `nn.utils.weight_norm` API (for old checkpoints with weight_g/weight_v).
+                If False, use the new `torch.nn.utils.parametrizations.weight_norm` API.
+
+        This is done during conversion since the original checkpoint has weight norm.
+        After conversion, remove_weight_norm() should be called to remove weight norm for inference.
+        """
+        weight_norm_fn = nn.utils.weight_norm
+        if hasattr(nn.utils.parametrizations, "weight_norm") and not legacy:
+            weight_norm_fn = weight_norm
 
         if hasattr(self.quantizer, "input_proj") and not isinstance(self.quantizer.input_proj, nn.Identity):
-            weight_norm(self.quantizer.input_proj, name="weight")
+            weight_norm_fn(self.quantizer.input_proj, name="weight")
 
         if hasattr(self.quantizer, "output_proj") and not isinstance(self.quantizer.output_proj, nn.Identity):
-            weight_norm(self.quantizer.output_proj, name="weight")
+            weight_norm_fn(self.quantizer.output_proj, name="weight")
 
-    def remove_weight_norm(self):
-        """Remove weight normalization from quantizer projection layers."""
+    def remove_weight_norm(self, legacy: bool = True):
+        """Remove weight normalization from quantizer projection layers after conversion.
+
+        Args:
+            legacy (`bool`, *optional*, defaults to `True`):
+                If True, use the old `nn.utils.remove_weight_norm` API (for old checkpoints with weight_g/weight_v).
+                If False, use the new `torch.nn.utils.parametrize.remove_parametrizations` API.
+
+        This should be called after weight conversion to remove weight norm for efficient inference.
+        """
+        remove_weight_norm_fn = nn.utils.remove_weight_norm
+        if hasattr(nn.utils.parametrizations, "weight_norm") and not legacy:
+            remove_weight_norm_fn = parametrize.remove_parametrizations
+
         if hasattr(self.quantizer, "input_proj") and not isinstance(self.quantizer.input_proj, nn.Identity):
-            nn.utils.remove_weight_norm(self.quantizer.input_proj, name="weight")
+            remove_weight_norm_fn(self.quantizer.input_proj, "weight")
 
         if hasattr(self.quantizer, "output_proj") and not isinstance(self.quantizer.output_proj, nn.Identity):
-            nn.utils.remove_weight_norm(self.quantizer.output_proj, name="weight")
+            remove_weight_norm_fn(self.quantizer.output_proj, "weight")
 
     @add_start_docstrings_to_model_forward(XY_TOKENIZER_INPUTS_DOCSTRING)
     @torch.no_grad()
